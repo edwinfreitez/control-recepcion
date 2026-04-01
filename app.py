@@ -4,19 +4,41 @@ from datetime import datetime
 import os
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(page_title="DUSA - Control de Recepción", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="Registro de Recepción de Alcoholes", page_icon="🧪", layout="wide")
 
-# Nombre del archivo de base de datos
+# --- ESTILO VISUAL (ENCABEZADO ESTÁNDAR DUSA) ---
+st.markdown("""
+    <style>
+    .block-container {padding-top: 3.5rem;}
+    .st-emotion-cache-12fmjuu {padding: 1rem 1rem 1rem 1rem;}
+    </style>
+    """, unsafe_allow_html=True)
+
+# Banner superior con Logo y Título Azul
+URL_LOGO = "https://raw.githubusercontent.com/edwinfreitez/calculadora/main/dusa.png"
+
+col_logo, col_tit = st.columns([1, 4])
+with col_logo:
+    st.image(URL_LOGO, width=150)
+with col_tit:
+    st.markdown("""
+        <div style="background-color: #002060; padding: 15px; border-radius: 10px;">
+            <h1 style="color: white; text-align: center; margin: 0; font-family: sans-serif;">
+                Registro de Recepción de Alcoholes
+            </h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# 2. CONFIGURACIÓN DE BASE DE DATOS
 DB_FILE = "historico_recepcion.csv"
-
-# Definición de las columnas finales
 COLUMNAS = [
     "Fecha", "Hora", "Tipo de Alcohol", "Tanque", "Producto", "Lote", 
     "Tanque Lavado", "Tanque Vaporizado", "Operador",
     "Volumen Aparente (L)", "Temperatura (°C)", "Grado Aparente (°GL)", 
     "Grado Real (°GL)", "Factor", "Volumen Real (L)", "LAA", "Observaciones"
 ]
-
 OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "VLVHO", "VLVUQ"]
 
 def preparar_db():
@@ -32,10 +54,7 @@ def preparar_db():
 
 preparar_db()
 
-st.title("📋 Registro de Recepción de Alcohol")
-st.markdown("---")
-
-# 2. INTERFAZ DE ENTRADA
+# 3. INTERFAZ DE ENTRADA
 col1, col2 = st.columns(2)
 
 with col1:
@@ -48,7 +67,6 @@ with col1:
     operador = st.text_input("Operador")
 
 with col2:
-    # Celdas vacías por defecto
     v_aparente_raw = st.text_input("Volumen Aparente (L)", value="")
     temp_raw = st.text_input("Temperatura (°C)", value="")
     g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="")
@@ -73,7 +91,7 @@ with col2:
 st.markdown("---")
 observaciones = st.text_area("Observaciones")
 
-# 3. BOTÓN DE GUARDAR
+# 4. BOTÓN DE GUARDAR
 if st.button("💾 Guardar en Histórico"):
     if tipo_alcohol == "" or operador == "":
         st.error("Error: 'Tipo de Alcohol' y 'Operador' son obligatorios.")
@@ -99,25 +117,21 @@ if st.button("💾 Guardar en Histórico"):
         }
         
         df_hist = pd.read_csv(DB_FILE)
-        df_nuevo = pd.DataFrame([nuevo_registro])
-        pd.concat([df_hist, df_nuevo], ignore_index=True).to_csv(DB_FILE, index=False)
-        
+        pd.concat([df_hist, pd.DataFrame([nuevo_registro])], ignore_index=True).to_csv(DB_FILE, index=False)
         st.success("✅ Registro guardado exitosamente.")
         st.balloons()
 
-# 4. VISUALIZACIÓN Y BOTÓN DE DESCARGA PARA ESTADÍSTICAS
+# 5. VISUALIZACIÓN Y DESCARGA
 st.markdown("---")
 if st.checkbox("Ver últimos registros"):
     df_ver = pd.read_csv(DB_FILE)
     st.dataframe(df_ver.tail(10))
     
-    # Preparamos el CSV con PUNTO Y COMA solo para la descarga
-    # Esto hace que Excel separe las columnas automáticamente
+    # Exportación optimizada para Excel
     csv_excel = df_ver.to_csv(index=False, sep=';').encode('utf-8-sig')
-    
     st.download_button(
         label="📥 Descargar para Excel (Columnas separadas)",
         data=csv_excel,
-        file_name=f'historico_dusa_{datetime.now().strftime("%Y%m%d")}.csv',
+        file_name=f'historico_recepcion_{datetime.now().strftime("%Y%m%d")}.csv',
         mime='text/csv',
     )
