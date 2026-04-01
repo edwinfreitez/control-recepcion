@@ -3,36 +3,50 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# 1. CONFIGURACIÓN DE LA PÁGINA
+# 1. CONFIGURACIÓN
 st.set_page_config(page_title="DUSA - Control de Recepción", page_icon="🧪", layout="wide")
 
-# Nombre del archivo de base de datos
 DB_FILE = "historico_recepcion.csv"
-
-# Definición de las columnas finales (Nombres reales)
 COLUMNAS = [
     "Fecha", "Hora", "Tipo de Alcohol", "Tanque", "Producto", "Lote", 
     "Tanque Lavado", "Tanque Vaporizado", "Operador",
     "Volumen Aparente (L)", "Temperatura (°C)", "Grado Aparente (°GL)", 
     "Grado Real (°GL)", "Factor", "Volumen Real (L)", "LAA", "Observaciones"
 ]
-
-# Opciones para la lista de tipos de alcohol
 OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "VLVHO", "VLVUQ"]
 
 def preparar_db():
     if not os.path.exists(DB_FILE):
         pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
     else:
-        # Si el archivo existe pero tiene las columnas viejas (C4, E5, etc.), lo reseteamos
         try:
             df_temp = pd.read_csv(DB_FILE)
-            if "C4" in df_temp.columns or "C5" in df_temp.columns:
+            if "C4" in df_temp.columns:
                 pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
         except:
             pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
 
 preparar_db()
+
+# --- LÓGICA DE LIMPIEZA (Session State) ---
+def limpiar_campos():
+    st.session_state["tipo"] = ""
+    st.session_state["tanque"] = ""
+    st.session_state["prod"] = ""
+    st.session_state["lote"] = ""
+    st.session_state["lavado"] = ""
+    st.session_state["vapor"] = ""
+    st.session_state["operador"] = ""
+    st.session_state["v_ap"] = "0"
+    st.session_state["temp"] = "0,00"
+    st.session_state["g_ap"] = "0,00"
+    st.session_state["g_re"] = "0,00"
+    st.session_state["fact"] = "0,0000"
+    st.session_state["obs"] = ""
+
+# Inicializar llaves si no existen
+if "tipo" not in st.session_state:
+    limpiar_campos()
 
 st.title("📋 Registro de Recepción de Alcohol")
 st.markdown("---")
@@ -41,24 +55,21 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 
 with col1:
-    # Selector de Tipo de Alcohol con las opciones solicitadas
-    tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL)
-    tanque = st.text_input("Tanque")
-    producto = st.text_input("Producto")
-    lote = st.text_input("Lote")
-    tanque_lavado = st.selectbox("Tanque Lavado", ["", "SI", "NO"])
-    tanque_vaporizado = st.selectbox("Tanque Vaporizado", ["", "SI", "NO"])
-    operador = st.text_input("Operador")
+    tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL, key="tipo")
+    tanque = st.text_input("Tanque", key="tanque")
+    producto = st.text_input("Producto", key="prod")
+    lote = st.text_input("Lote", key="lote")
+    tanque_lavado = st.selectbox("Tanque Lavado", ["", "SI", "NO"], key="lavado")
+    tanque_vaporizado = st.selectbox("Tanque Vaporizado", ["", "SI", "NO"], key="vapor")
+    operador = st.text_input("Operador", key="operador")
 
 with col2:
-    # Entradas de texto para formato libre de botones +/-
-    v_aparente_raw = st.text_input("Volumen Aparente (L)", value="0")
-    temp_raw = st.text_input("Temperatura (°C)", value="0,00")
-    g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="0,00")
-    g_real_raw = st.text_input("Grado Real (°GL)", value="0,00")
-    factor_raw = st.text_input("Factor", value="0,0000")
+    v_aparente_raw = st.text_input("Volumen Aparente (L)", key="v_ap")
+    temp_raw = st.text_input("Temperatura (°C)", key="temp")
+    g_aparente_raw = st.text_input("Grado Aparente (°GL)", key="g_ap")
+    g_real_raw = st.text_input("Grado Real (°GL)", key="g_re")
+    factor_raw = st.text_input("Factor", key="fact")
 
-    # Conversión para cálculos (Manejo de coma decimal y punto de miles)
     try:
         v_aparente = float(v_aparente_raw.replace(".", "").replace(",", "."))
         temp = float(temp_raw.replace(",", "."))
@@ -69,17 +80,14 @@ with col2:
         v_aparente, temp, g_aparente, g_real, factor = 0.0, 0.0, 0.0, 0.0, 0.0
 
     # 3. LÓGICA DE FÓRMULAS
-    # Volumen Real: E4 * E8
     v_real = v_aparente * factor if g_real != 0 else 0.0
-    # LAA: E9 * E7 / 100
     laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
-    # Mostrar cálculos en pantalla con formato DUSA (punto miles, coma decimal)
     st.info(f"**Volumen Real (L):** {v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     st.info(f"**LAA:** {laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
 st.markdown("---")
-observaciones = st.text_area("Observaciones")
+observaciones = st.text_area("Observaciones", key="obs")
 
 # 4. BOTÓN DE GUARDAR
 if st.button("💾 Guardar en Histórico"):
@@ -106,15 +114,14 @@ if st.button("💾 Guardar en Histórico"):
             "Observaciones": observaciones
         }
         
-        # Cargar y guardar
         df_hist = pd.read_csv(DB_FILE)
         df_nuevo = pd.DataFrame([nuevo_registro])
-        df_final = pd.concat([df_hist, df_nuevo], ignore_index=True)
-        df_final.to_csv(DB_FILE, index=False)
+        pd.concat([df_hist, df_nuevo], ignore_index=True).to_csv(DB_FILE, index=False)
         
-        st.success("✅ Registro guardado exitosamente.")
-        st.balloons()
+        st.success("✅ Registro guardado. Limpiando formulario...")
+        limpiar_campos()
+        st.rerun() # Esto recarga la página con los campos vacíos
 
-# 5. VISUALIZACIÓN DE LA TABLA
+# 5. VISUALIZACIÓN
 if st.checkbox("Ver últimos registros"):
     st.dataframe(pd.read_csv(DB_FILE).tail(10))
