@@ -6,29 +6,19 @@ import os
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Registro de Recepción de Alcoholes", page_icon="🧪", layout="wide")
 
-# --- ESTILO VISUAL (ENCABEZADO ESTÁNDAR DUSA) ---
-st.markdown("""
-    <style>
-    .block-container {padding-top: 3.5rem;}
-    .st-emotion-cache-12fmjuu {padding: 1rem 1rem 1rem 1rem;}
-    </style>
-    """, unsafe_allow_html=True)
+# --- FUNCIONES DE APOYO (ESTÁNDAR VENEZUELA) ---
+def formatear_venezuela(valor, decimales=2):
+    try:
+        val = float(valor) if valor else 0.0
+        texto = "{:,.{}f}".format(val, decimales)
+        return texto.translate(str.maketrans(",.", ".,"))
+    except:
+        return "0,00"
 
-# Banner superior con Logo y Título Azul
-URL_LOGO = "https://raw.githubusercontent.com/edwinfreitez/calculadora/main/dusa.png"
-
-col_logo, col_tit = st.columns([1, 4])
-with col_logo:
-    st.image(URL_LOGO, width=150)
-with col_tit:
-    st.markdown("""
-        <div style="background-color: #002060; padding: 15px; border-radius: 10px;">
-            <h1 style="color: white; text-align: center; margin: 0; font-family: sans-serif;">
-                Registro de Recepción de Alcoholes
-            </h1>
-        </div>
-        """, unsafe_allow_html=True)
-
+# --- ENCABEZADO (ESTILO EXACTO A TU CALCULADORA) ---
+st.image("https://dusa.com.ve/wp-content/uploads/2020/10/Logo-Original.png", width=180)
+st.markdown('<h2 style="font-size: 24px; margin-bottom: 0px; margin-top: -20px;">📋 Registro de Recepción de Alcoholes</h2>', unsafe_allow_html=True)
+st.markdown("""**Destilerías Unidas, S.A.** *© Edwin Freitez*""")
 st.markdown("---")
 
 # 2. CONFIGURACIÓN DE BASE DE DATOS
@@ -47,7 +37,8 @@ def preparar_db():
     else:
         try:
             df_temp = pd.read_csv(DB_FILE)
-            if "C4" in df_temp.columns or "C5" in df_temp.columns:
+            # Limpieza automática si detecta nombres de celdas viejas (C4, E5, etc.)
+            if "C4" in df_temp.columns:
                 pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
         except:
             pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
@@ -67,6 +58,7 @@ with col1:
     operador = st.text_input("Operador")
 
 with col2:
+    # Celdas vacías por defecto
     v_aparente_raw = st.text_input("Volumen Aparente (L)", value="")
     temp_raw = st.text_input("Temperatura (°C)", value="")
     g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="")
@@ -74,6 +66,7 @@ with col2:
     factor_raw = st.text_input("Factor", value="")
 
     try:
+        # Conversión que acepta el formato de entrada venezolano
         v_aparente = float(v_aparente_raw.replace(".", "").replace(",", ".")) if v_aparente_raw else 0.0
         temp = float(temp_raw.replace(",", ".")) if temp_raw else 0.0
         g_aparente = float(g_aparente_raw.replace(",", ".")) if g_aparente_raw else 0.0
@@ -85,14 +78,15 @@ with col2:
     v_real = v_aparente * factor if g_real != 0 else 0.0
     laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
-    st.info(f"**Volumen Real (L):** {v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-    st.info(f"**LAA:** {laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    # Métricas con el formato visual de DUSA
+    st.info(f"**Volumen Real (L):** {formatear_venezuela(v_real)}")
+    st.info(f"**LAA:** {formatear_venezuela(laa)}")
 
 st.markdown("---")
 observaciones = st.text_area("Observaciones")
 
 # 4. BOTÓN DE GUARDAR
-if st.button("💾 Guardar en Histórico"):
+if st.button("💾 Guardar en Histórico", use_container_width=True):
     if tipo_alcohol == "" or operador == "":
         st.error("Error: 'Tipo de Alcohol' y 'Operador' son obligatorios.")
     else:
@@ -106,13 +100,13 @@ if st.button("💾 Guardar en Histórico"):
             "Tanque Lavado": tanque_lavado,
             "Tanque Vaporizado": tanque_vaporizado,
             "Operador": operador,
-            "Volumen Aparente (L)": f"{v_aparente:,.0f}".replace(",", "."),
-            "Temperatura (°C)": f"{temp:.2f}".replace(".", ","),
-            "Grado Aparente (°GL)": f"{g_aparente:.2f}".replace(".", ","),
-            "Grado Real (°GL)": f"{g_real:.2f}".replace(".", ","),
-            "Factor": f"{factor:.4f}".replace(".", ","),
-            "Volumen Real (L)": f"{v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            "LAA": f"{laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            "Volumen Aparente (L)": formatear_venezuela(v_aparente, 0),
+            "Temperatura (°C)": formatear_venezuela(temp, 2),
+            "Grado Aparente (°GL)": formatear_venezuela(g_aparente, 2),
+            "Grado Real (°GL)": formatear_venezuela(g_real, 2),
+            "Factor": formatear_venezuela(factor, 4),
+            "Volumen Real (L)": formatear_venezuela(v_real, 2),
+            "LAA": formatear_venezuela(laa, 2),
             "Observaciones": observaciones
         }
         
@@ -121,13 +115,13 @@ if st.button("💾 Guardar en Histórico"):
         st.success("✅ Registro guardado exitosamente.")
         st.balloons()
 
-# 5. VISUALIZACIÓN Y DESCARGA
+# 5. HISTÓRICO Y EXPORTACIÓN
 st.markdown("---")
 if st.checkbox("Ver últimos registros"):
     df_ver = pd.read_csv(DB_FILE)
-    st.dataframe(df_ver.tail(10))
+    st.dataframe(df_ver.tail(10), use_container_width=True)
     
-    # Exportación optimizada para Excel
+    # Exportación con ';' para que Excel separe columnas automáticamente
     csv_excel = df_ver.to_csv(index=False, sep=';').encode('utf-8-sig')
     st.download_button(
         label="📥 Descargar para Excel (Columnas separadas)",
