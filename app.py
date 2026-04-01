@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+from io import BytesIO
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="DUSA - Control de Recepción", page_icon="🧪", layout="wide")
@@ -24,7 +25,6 @@ def preparar_db():
     if not os.path.exists(DB_FILE):
         pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
     else:
-        # Si el archivo existe pero tiene las columnas viejas (C4, E5, etc.), lo reseteamos
         try:
             df_temp = pd.read_csv(DB_FILE)
             if "C4" in df_temp.columns or "C5" in df_temp.columns:
@@ -41,7 +41,6 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 
 with col1:
-    # Selector de Tipo de Alcohol con las opciones solicitadas
     tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL)
     tanque = st.text_input("Tanque")
     producto = st.text_input("Producto")
@@ -51,30 +50,27 @@ with col1:
     operador = st.text_input("Operador")
 
 with col2:
-    # Entradas de texto para formato libre de botones +/-
-    v_aparente_raw = st.text_input("Volumen Aparente (L)", value="0")
-    temp_raw = st.text_input("Temperatura (°C)", value="0,00")
-    g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="0,00")
-    g_real_raw = st.text_input("Grado Real (°GL)", value="0,00")
-    factor_raw = st.text_input("Factor", value="0,0000")
+    # Modificado: ahora el valor inicial es una cadena vacía ""
+    v_aparente_raw = st.text_input("Volumen Aparente (L)", value="")
+    temp_raw = st.text_input("Temperatura (°C)", value="")
+    g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="")
+    g_real_raw = st.text_input("Grado Real (°GL)", value="")
+    factor_raw = st.text_input("Factor", value="")
 
-    # Conversión para cálculos (Manejo de coma decimal y punto de miles)
+    # Conversión para cálculos (Manejo de campos vacíos, puntos y comas)
     try:
-        v_aparente = float(v_aparente_raw.replace(".", "").replace(",", "."))
-        temp = float(temp_raw.replace(",", "."))
-        g_aparente = float(g_aparente_raw.replace(",", "."))
-        g_real = float(g_real_raw.replace(",", "."))
-        factor = float(factor_raw.replace(",", "."))
+        v_aparente = float(v_aparente_raw.replace(".", "").replace(",", ".")) if v_aparente_raw else 0.0
+        temp = float(temp_raw.replace(",", ".")) if temp_raw else 0.0
+        g_aparente = float(g_aparente_raw.replace(",", ".")) if g_aparente_raw else 0.0
+        g_real = float(g_real_raw.replace(",", ".")) if g_real_raw else 0.0
+        factor = float(factor_raw.replace(",", ".")) if factor_raw else 0.0
     except:
         v_aparente, temp, g_aparente, g_real, factor = 0.0, 0.0, 0.0, 0.0, 0.0
 
     # 3. LÓGICA DE FÓRMULAS
-    # Volumen Real: E4 * E8
     v_real = v_aparente * factor if g_real != 0 else 0.0
-    # LAA: E9 * E7 / 100
     laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
-    # Mostrar cálculos en pantalla con formato DUSA (punto miles, coma decimal)
     st.info(f"**Volumen Real (L):** {v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     st.info(f"**LAA:** {laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -106,7 +102,6 @@ if st.button("💾 Guardar en Histórico"):
             "Observaciones": observaciones
         }
         
-        # Cargar y guardar
         df_hist = pd.read_csv(DB_FILE)
         df_nuevo = pd.DataFrame([nuevo_registro])
         df_final = pd.concat([df_hist, df_nuevo], ignore_index=True)
@@ -115,6 +110,24 @@ if st.button("💾 Guardar en Histórico"):
         st.success("✅ Registro guardado exitosamente.")
         st.balloons()
 
-# 5. VISUALIZACIÓN DE LA TABLA
+# 5. VISUALIZACIÓN Y DESCARGA
+st.markdown("---")
 if st.checkbox("Ver últimos registros"):
-    st.dataframe(pd.read_csv(DB_FILE).tail(10))
+    df_ver = pd.read_csv(DB_FILE)
+    st.dataframe(df_ver.tail(10))
+    
+    # Función para convertir DataFrame a Excel
+    def to_excel(df):
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Histórico')
+        return output.getvalue()
+
+    # Botón para descargar el Excel real
+    excel_data = to_excel(df_ver)
+    st.download_button(
+        label="📥 Descargar Histórico para Excel",
+        data=excel_data,
+        file_name='historico_dusa.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
