@@ -22,16 +22,15 @@ OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "V
 
 def preparar_db():
     if not os.path.exists(DB_FILE):
-        # Guardamos con punto y coma para compatibilidad directa con Excel
-        pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False, sep=';')
+        pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
     else:
+        # Si el archivo existe pero tiene las columnas viejas (C4, E5, etc.), lo reseteamos
         try:
-            # Intentamos leer con punto y coma
-            df_temp = pd.read_csv(DB_FILE, sep=';')
+            df_temp = pd.read_csv(DB_FILE)
             if "C4" in df_temp.columns or "C5" in df_temp.columns:
-                pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False, sep=';')
+                pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
         except:
-            pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False, sep=';')
+            pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
 
 preparar_db()
 
@@ -42,6 +41,7 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 
 with col1:
+    # Selector de Tipo de Alcohol con las opciones solicitadas
     tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL)
     tanque = st.text_input("Tanque")
     producto = st.text_input("Producto")
@@ -51,28 +51,30 @@ with col1:
     operador = st.text_input("Operador")
 
 with col2:
-    # Se eliminaron los valores por defecto "0" y "0,00"
-    v_aparente_raw = st.text_input("Volumen Aparente (L)", value="")
-    temp_raw = st.text_input("Temperatura (°C)", value="")
-    g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="")
-    g_real_raw = st.text_input("Grado Real (°GL)", value="")
-    factor_raw = st.text_input("Factor", value="")
+    # Entradas de texto para formato libre de botones +/-
+    v_aparente_raw = st.text_input("Volumen Aparente (L)", value="0")
+    temp_raw = st.text_input("Temperatura (°C)", value="0,00")
+    g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="0,00")
+    g_real_raw = st.text_input("Grado Real (°GL)", value="0,00")
+    factor_raw = st.text_input("Factor", value="0,0000")
 
     # Conversión para cálculos (Manejo de coma decimal y punto de miles)
     try:
-        v_aparente = float(v_aparente_raw.replace(".", "").replace(",", ".")) if v_aparente_raw else 0.0
-        temp = float(temp_raw.replace(",", ".")) if temp_raw else 0.0
-        g_aparente = float(g_aparente_raw.replace(",", ".")) if g_aparente_raw else 0.0
-        g_real = float(g_real_raw.replace(",", ".")) if g_real_raw else 0.0
-        factor = float(factor_raw.replace(",", ".")) if factor_raw else 0.0
+        v_aparente = float(v_aparente_raw.replace(".", "").replace(",", "."))
+        temp = float(temp_raw.replace(",", "."))
+        g_aparente = float(g_aparente_raw.replace(",", "."))
+        g_real = float(g_real_raw.replace(",", "."))
+        factor = float(factor_raw.replace(",", "."))
     except:
         v_aparente, temp, g_aparente, g_real, factor = 0.0, 0.0, 0.0, 0.0, 0.0
 
     # 3. LÓGICA DE FÓRMULAS
+    # Volumen Real: E4 * E8
     v_real = v_aparente * factor if g_real != 0 else 0.0
+    # LAA: E9 * E7 / 100
     laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
-    # Mostrar cálculos en pantalla
+    # Mostrar cálculos en pantalla con formato DUSA (punto miles, coma decimal)
     st.info(f"**Volumen Real (L):** {v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     st.info(f"**LAA:** {laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -104,15 +106,15 @@ if st.button("💾 Guardar en Histórico"):
             "Observaciones": observaciones
         }
         
-        # Guardar usando punto y coma como separador
-        df_hist = pd.read_csv(DB_FILE, sep=';')
+        # Cargar y guardar
+        df_hist = pd.read_csv(DB_FILE)
         df_nuevo = pd.DataFrame([nuevo_registro])
         df_final = pd.concat([df_hist, df_nuevo], ignore_index=True)
-        df_final.to_csv(DB_FILE, index=False, sep=';')
+        df_final.to_csv(DB_FILE, index=False)
         
         st.success("✅ Registro guardado exitosamente.")
         st.balloons()
 
 # 5. VISUALIZACIÓN DE LA TABLA
 if st.checkbox("Ver últimos registros"):
-    st.dataframe(pd.read_csv(DB_FILE, sep=';').tail(10))
+    st.dataframe(pd.read_csv(DB_FILE).tail(10))
