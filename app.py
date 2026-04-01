@@ -6,23 +6,28 @@ import os
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="DUSA - Control de Recepción", page_icon="🧪", layout="wide")
 
+# Nombre del archivo de base de datos
 DB_FILE = "historico_recepcion.csv"
+
+# Definición de las columnas finales (Nombres reales)
 COLUMNAS = [
     "Fecha", "Hora", "Tipo de Alcohol", "Tanque", "Producto", "Lote", 
     "Tanque Lavado", "Tanque Vaporizado", "Operador",
     "Volumen Aparente (L)", "Temperatura (°C)", "Grado Aparente (°GL)", 
     "Grado Real (°GL)", "Factor", "Volumen Real (L)", "LAA", "Observaciones"
 ]
+
+# Opciones para la lista de tipos de alcohol
 OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "VLVHO", "VLVUQ"]
 
 def preparar_db():
     if not os.path.exists(DB_FILE):
         pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
     else:
+        # Si el archivo existe pero tiene las columnas viejas (C4, E5, etc.), lo reseteamos
         try:
             df_temp = pd.read_csv(DB_FILE)
-            # Si detecta encabezados viejos de Excel (C4, etc), limpia el archivo
-            if "C4" in df_temp.columns:
+            if "C4" in df_temp.columns or "C5" in df_temp.columns:
                 pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
         except:
             pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
@@ -32,84 +37,84 @@ preparar_db()
 st.title("📋 Registro de Recepción de Alcohol")
 st.markdown("---")
 
-# 2. FORMULARIO DE ENTRADA
-# 'clear_on_submit=True' hace que al darle a Guardar, todos los campos vuelvan a blanco/cero
-with st.form("formulario_dusa", clear_on_submit=True):
-    col1, col2 = st.columns(2)
+# 2. INTERFAZ DE ENTRADA
+col1, col2 = st.columns(2)
 
-    with col1:
-        tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL)
-        tanque = st.text_input("Tanque")
-        producto = st.text_input("Producto")
-        lote = st.text_input("Lote")
-        tanque_lavado = st.selectbox("Tanque Lavado", ["", "SI", "NO"])
-        tanque_vaporizado = st.selectbox("Tanque Vaporizado", ["", "SI", "NO"])
-        operador = st.text_input("Operador")
+with col1:
+    # Selector de Tipo de Alcohol con las opciones solicitadas
+    tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL)
+    tanque = st.text_input("Tanque")
+    producto = st.text_input("Producto")
+    lote = st.text_input("Lote")
+    tanque_lavado = st.selectbox("Tanque Lavado", ["", "SI", "NO"])
+    tanque_vaporizado = st.selectbox("Tanque Vaporizado", ["", "SI", "NO"])
+    operador = st.text_input("Operador")
 
-    with col2:
-        v_aparente_raw = st.text_input("Volumen Aparente (L)", value="0")
-        temp_raw = st.text_input("Temperatura (°C)", value="0,00")
-        g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="0,00")
-        g_real_raw = st.text_input("Grado Real (°GL)", value="0,00")
-        factor_raw = st.text_input("Factor", value="0,0000")
+with col2:
+    # Entradas de texto para formato libre de botones +/-
+    v_aparente_raw = st.text_input("Volumen Aparente (L)", value="0")
+    temp_raw = st.text_input("Temperatura (°C)", value="0,00")
+    g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="0,00")
+    g_real_raw = st.text_input("Grado Real (°GL)", value="0,00")
+    factor_raw = st.text_input("Factor", value="0,0000")
 
-        # Nota: Los cálculos se realizan al momento de procesar el envío (submit)
-        st.write("---")
-        st.caption("Los cálculos de Volumen Real y LAA se procesarán al guardar.")
+    # Conversión para cálculos (Manejo de coma decimal y punto de miles)
+    try:
+        v_aparente = float(v_aparente_raw.replace(".", "").replace(",", "."))
+        temp = float(temp_raw.replace(",", "."))
+        g_aparente = float(g_aparente_raw.replace(",", "."))
+        g_real = float(g_real_raw.replace(",", "."))
+        factor = float(factor_raw.replace(",", "."))
+    except:
+        v_aparente, temp, g_aparente, g_real, factor = 0.0, 0.0, 0.0, 0.0, 0.0
 
-    observaciones = st.text_area("Observaciones")
-    
-    # El botón de Guardar ahora es el 'submit' del formulario
-    boton_guardar = st.form_submit_button("💾 Guardar en Histórico")
+    # 3. LÓGICA DE FÓRMULAS
+    # Volumen Real: E4 * E8
+    v_real = v_aparente * factor if g_real != 0 else 0.0
+    # LAA: E9 * E7 / 100
+    laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
-# 3. LÓGICA DE PROCESAMIENTO
-if boton_guardar:
-    if tipo_alcohol == "" or operador == "":
-        st.error("Error: 'Tipo de Alcohol' y 'Operador' son obligatorios.")
-    else:
-        try:
-            # Conversión de los textos a números para cálculos
-            v_ap = float(v_aparente_raw.replace(".", "").replace(",", "."))
-            temp = float(temp_raw.replace(",", "."))
-            g_ap = float(g_aparente_raw.replace(",", "."))
-            g_re = float(g_real_raw.replace(",", "."))
-            fact = float(factor_raw.replace(",", "."))
-            
-            # Fórmulas (E9 y E10 de tu Excel)
-            v_real_calc = v_ap * fact if g_re != 0 else 0.0
-            laa_calc = (v_real_calc * g_re) / 100 if v_real_calc != 0 else 0.0
+    # Mostrar cálculos en pantalla con formato DUSA (punto miles, coma decimal)
+    st.info(f"**Volumen Real (L):** {v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    st.info(f"**LAA:** {laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
-            nuevo_registro = {
-                "Fecha": datetime.now().strftime("%d/%m/%Y"),
-                "Hora": datetime.now().strftime("%H:%M:%S"),
-                "Tipo de Alcohol": tipo_alcohol,
-                "Tanque": tanque,
-                "Producto": producto,
-                "Lote": lote,
-                "Tanque Lavado": tanque_lavado,
-                "Tanque Vaporizado": tanque_vaporizado,
-                "Operador": operador,
-                "Volumen Aparente (L)": f"{v_ap:,.0f}".replace(",", "."),
-                "Temperatura (°C)": f"{temp:.2f}".replace(".", ","),
-                "Grado Aparente (°GL)": f"{g_ap:.2f}".replace(".", ","),
-                "Grado Real (°GL)": f"{g_re:.2f}".replace(".", ","),
-                "Factor": f"{fact:.4f}".replace(".", ","),
-                "Volumen Real (L)": f"{v_real_calc:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                "LAA": f"{laa_calc:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                "Observaciones": observaciones
-            }
-            
-            # Guardar en el CSV
-            df_hist = pd.read_csv(DB_FILE)
-            pd.concat([df_hist, pd.DataFrame([nuevo_registro])], ignore_index=True).to_csv(DB_FILE, index=False)
-            
-            st.success("✅ Registro guardado exitosamente. Formulario listo para nueva entrada.")
-            st.balloons()
-            
-        except ValueError:
-            st.error("Error en el formato de los números. Verifique puntos y comas.")
-
-# 4. VISUALIZACIÓN DEL HISTÓRICO
 st.markdown("---")
+observaciones = st.text_area("Observaciones")
+
+# 4. BOTÓN DE GUARDAR
+if st.button("💾 Guardar en Histórico"):
+    if tipo_alcohol == "" or operador == "":
+        st.error("Error: 'Tipo de Alcohol' y 'Operador' son campos obligatorios.")
+    else:
+        nuevo_registro = {
+            "Fecha": datetime.now().strftime("%d/%m/%Y"),
+            "Hora": datetime.now().strftime("%H:%M:%S"),
+            "Tipo de Alcohol": tipo_alcohol,
+            "Tanque": tanque,
+            "Producto": producto,
+            "Lote": lote,
+            "Tanque Lavado": tanque_lavado,
+            "Tanque Vaporizado": tanque_vaporizado,
+            "Operador": operador,
+            "Volumen Aparente (L)": f"{v_aparente:,.0f}".replace(",", "."),
+            "Temperatura (°C)": f"{temp:.2f}".replace(".", ","),
+            "Grado Aparente (°GL)": f"{g_aparente:.2f}".replace(".", ","),
+            "Grado Real (°GL)": f"{g_real:.2f}".replace(".", ","),
+            "Factor": f"{factor:.4f}".replace(".", ","),
+            "Volumen Real (L)": f"{v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            "LAA": f"{laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            "Observaciones": observaciones
+        }
+        
+        # Cargar y guardar
+        df_hist = pd.read_csv(DB_FILE)
+        df_nuevo = pd.DataFrame([nuevo_registro])
+        df_final = pd.concat([df_hist, df_nuevo], ignore_index=True)
+        df_final.to_csv(DB_FILE, index=False)
+        
+        st.success("✅ Registro guardado exitosamente.")
+        st.balloons()
+
+# 5. VISUALIZACIÓN DE LA TABLA
 if st.checkbox("Ver últimos registros"):
     st.dataframe(pd.read_csv(DB_FILE).tail(10))
