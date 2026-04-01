@@ -17,14 +17,19 @@ COLUMNAS = [
     "Grado Real (°GL)", "Factor", "Volumen Real (L)", "LAA", "Observaciones"
 ]
 
+# Opciones para la lista de tipos de alcohol
+OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "VLVHO", "VLVUQ"]
+
 def preparar_db():
-    # Si el archivo no existe, lo creamos con los nuevos encabezados
     if not os.path.exists(DB_FILE):
         pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
     else:
-        # Si existe pero tiene las columnas viejas (C4, E5, etc.), lo reseteamos
-        df_temp = pd.read_csv(DB_FILE)
-        if "C4" in df_temp.columns:
+        # Si el archivo existe pero tiene las columnas viejas (C4, E5, etc.), lo reseteamos
+        try:
+            df_temp = pd.read_csv(DB_FILE)
+            if "C4" in df_temp.columns or "C5" in df_temp.columns:
+                pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
+        except:
             pd.DataFrame(columns=COLUMNAS).to_csv(DB_FILE, index=False)
 
 preparar_db()
@@ -32,11 +37,12 @@ preparar_db()
 st.title("📋 Registro de Recepción de Alcohol")
 st.markdown("---")
 
-# 2. INTERFAZ DE ENTRADA (Sin etiquetas de celdas Excel)
+# 2. INTERFAZ DE ENTRADA
 col1, col2 = st.columns(2)
 
 with col1:
-    tipo_alcohol = st.text_input("Tipo de Alcohol")
+    # Selector de Tipo de Alcohol con las opciones solicitadas
+    tipo_alcohol = st.selectbox("Tipo de Alcohol", OPCIONES_ALCOHOL)
     tanque = st.text_input("Tanque")
     producto = st.text_input("Producto")
     lote = st.text_input("Lote")
@@ -45,7 +51,7 @@ with col1:
     operador = st.text_input("Operador")
 
 with col2:
-    # Entradas de texto para evitar botones +/- y controlar el formato
+    # Entradas de texto para formato libre de botones +/-
     v_aparente_raw = st.text_input("Volumen Aparente (L)", value="0")
     temp_raw = st.text_input("Temperatura (°C)", value="0,00")
     g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="0,00")
@@ -62,11 +68,13 @@ with col2:
     except:
         v_aparente, temp, g_aparente, g_real, factor = 0.0, 0.0, 0.0, 0.0, 0.0
 
-    # 3. LÓGICA DE FÓRMULAS (E9 y E10)
+    # 3. LÓGICA DE FÓRMULAS
+    # Volumen Real: E4 * E8
     v_real = v_aparente * factor if g_real != 0 else 0.0
+    # LAA: E9 * E7 / 100
     laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
-    # Mostrar cálculos en pantalla con formato venezolano
+    # Mostrar cálculos en pantalla con formato DUSA (punto miles, coma decimal)
     st.info(f"**Volumen Real (L):** {v_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     st.info(f"**LAA:** {laa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -98,7 +106,7 @@ if st.button("💾 Guardar en Histórico"):
             "Observaciones": observaciones
         }
         
-        # Guardar datos
+        # Cargar y guardar
         df_hist = pd.read_csv(DB_FILE)
         df_nuevo = pd.DataFrame([nuevo_registro])
         df_final = pd.concat([df_hist, df_nuevo], ignore_index=True)
