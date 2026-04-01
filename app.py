@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
-from io import BytesIO
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="DUSA - Control de Recepción", page_icon="🧪", layout="wide")
@@ -10,7 +9,7 @@ st.set_page_config(page_title="DUSA - Control de Recepción", page_icon="🧪", 
 # Nombre del archivo de base de datos
 DB_FILE = "historico_recepcion.csv"
 
-# Definición de las columnas finales (Nombres reales)
+# Definición de las columnas finales
 COLUMNAS = [
     "Fecha", "Hora", "Tipo de Alcohol", "Tanque", "Producto", "Lote", 
     "Tanque Lavado", "Tanque Vaporizado", "Operador",
@@ -18,7 +17,6 @@ COLUMNAS = [
     "Grado Real (°GL)", "Factor", "Volumen Real (L)", "LAA", "Observaciones"
 ]
 
-# Opciones para la lista de tipos de alcohol
 OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "VLVHO", "VLVUQ"]
 
 def preparar_db():
@@ -50,14 +48,13 @@ with col1:
     operador = st.text_input("Operador")
 
 with col2:
-    # Modificado: ahora el valor inicial es una cadena vacía ""
+    # Celdas vacías por defecto
     v_aparente_raw = st.text_input("Volumen Aparente (L)", value="")
     temp_raw = st.text_input("Temperatura (°C)", value="")
     g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="")
     g_real_raw = st.text_input("Grado Real (°GL)", value="")
     factor_raw = st.text_input("Factor", value="")
 
-    # Conversión para cálculos (Manejo de campos vacíos, puntos y comas)
     try:
         v_aparente = float(v_aparente_raw.replace(".", "").replace(",", ".")) if v_aparente_raw else 0.0
         temp = float(temp_raw.replace(",", ".")) if temp_raw else 0.0
@@ -67,7 +64,6 @@ with col2:
     except:
         v_aparente, temp, g_aparente, g_real, factor = 0.0, 0.0, 0.0, 0.0, 0.0
 
-    # 3. LÓGICA DE FÓRMULAS
     v_real = v_aparente * factor if g_real != 0 else 0.0
     laa = (v_real * g_real) / 100 if v_real != 0 else 0.0
 
@@ -77,10 +73,10 @@ with col2:
 st.markdown("---")
 observaciones = st.text_area("Observaciones")
 
-# 4. BOTÓN DE GUARDAR
+# 3. BOTÓN DE GUARDAR
 if st.button("💾 Guardar en Histórico"):
     if tipo_alcohol == "" or operador == "":
-        st.error("Error: 'Tipo de Alcohol' y 'Operador' son campos obligatorios.")
+        st.error("Error: 'Tipo de Alcohol' y 'Operador' son obligatorios.")
     else:
         nuevo_registro = {
             "Fecha": datetime.now().strftime("%d/%m/%Y"),
@@ -104,30 +100,24 @@ if st.button("💾 Guardar en Histórico"):
         
         df_hist = pd.read_csv(DB_FILE)
         df_nuevo = pd.DataFrame([nuevo_registro])
-        df_final = pd.concat([df_hist, df_nuevo], ignore_index=True)
-        df_final.to_csv(DB_FILE, index=False)
+        pd.concat([df_hist, df_nuevo], ignore_index=True).to_csv(DB_FILE, index=False)
         
         st.success("✅ Registro guardado exitosamente.")
         st.balloons()
 
-# 5. VISUALIZACIÓN Y DESCARGA
+# 4. VISUALIZACIÓN Y BOTÓN DE DESCARGA PARA ESTADÍSTICAS
 st.markdown("---")
 if st.checkbox("Ver últimos registros"):
     df_ver = pd.read_csv(DB_FILE)
     st.dataframe(df_ver.tail(10))
     
-    # Función para convertir DataFrame a Excel
-    def to_excel(df):
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Histórico')
-        return output.getvalue()
-
-    # Botón para descargar el Excel real
-    excel_data = to_excel(df_ver)
+    # Preparamos el CSV con PUNTO Y COMA solo para la descarga
+    # Esto hace que Excel separe las columnas automáticamente
+    csv_excel = df_ver.to_csv(index=False, sep=';').encode('utf-8-sig')
+    
     st.download_button(
-        label="📥 Descargar Histórico para Excel",
-        data=excel_data,
-        file_name='historico_dusa.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        label="📥 Descargar para Excel (Columnas separadas)",
+        data=csv_excel,
+        file_name=f'historico_dusa_{datetime.now().strftime("%Y%m%d")}.csv',
+        mime='text/csv',
     )
