@@ -25,9 +25,9 @@ st.markdown("---")
 DB_FILE = "historico_recepcion.csv"
 COLUMNAS = [
     "Fecha", "Hora", "Tipo de Alcohol", "Tanque", "Producto", "Lote", 
-    "Tanque Lavado", "Tanque Vaporizado", "Operador",
+    "¿Tanque Lavado?", "¿Tanque Vaporizado?", "Operador",
     "Volumen Aparente (L)", "Temperatura (°C)", "Grado Aparente (°GL)", 
-    "Grado Real (°GL)", "Factor", "Volumen Real (L)", "LAA", "Observaciones"
+    "Grado Real (°GL)", "Factor de corrección", "Volumen Real (L)", "LAA", "Observaciones"
 ]
 OPCIONES_ALCOHOL = ["", "VLVCW", "VLVFW", "VLCCW", "VLCUQ", "VLVBW", "VLVRW", "VLVHO", "VLVUQ"]
 
@@ -53,8 +53,8 @@ with col1:
     tanque = st.text_input("Tanque")
     producto = st.text_input("Producto")
     lote = st.text_input("Lote")
-    tanque_lavado = st.selectbox("Tanque Lavado", ["", "SI", "NO"])
-    tanque_vaporizado = st.selectbox("Tanque Vaporizado", ["", "SI", "NO"])
+    tanque_lavado = st.selectbox("¿Tanque Lavado?", ["", "SI", "NO"])
+    tanque_vaporizado = st.selectbox("¿Tanque Vaporizado?", ["", "SI", "NO"])
     operador = st.text_input("Operador")
 
 with col2:
@@ -63,7 +63,7 @@ with col2:
     temp_raw = st.text_input("Temperatura (°C)", value="")
     g_aparente_raw = st.text_input("Grado Aparente (°GL)", value="")
     g_real_raw = st.text_input("Grado Real (°GL)", value="")
-    factor_raw = st.text_input("Factor", value="")
+    factor_raw = st.text_input("Factor de corrección", value="")
 
     try:
         # Conversión que acepta el formato de entrada venezolano
@@ -86,7 +86,7 @@ st.markdown("---")
 observaciones = st.text_area("Observaciones")
 
 # 4. BOTÓN DE GUARDAR
-if st.button("💾 Guardar en Histórico", use_container_width=True):
+if st.button("💾 Guardar", use_container_width=True):
     if tipo_alcohol == "" or operador == "":
         st.error("Error: 'Tipo de Alcohol' y 'Operador' son obligatorios.")
     else:
@@ -124,7 +124,7 @@ if st.checkbox("Ver últimos registros"):
     # Exportación con ';' para que Excel separe columnas automáticamente
     csv_excel = df_ver.to_csv(index=False, sep=';').encode('utf-8-sig')
     st.download_button(
-        label="📥 Descargar para Excel (Columnas separadas)",
+        label="📥 Descargar Excel",
         data=csv_excel,
         file_name=f'historico_recepcion_{datetime.now().strftime("%Y%m%d")}.csv',
         mime='text/csv',
